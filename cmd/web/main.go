@@ -1,7 +1,6 @@
 package main
 
 import (
-	"database/sql/driver"
 	"encoding/gob"
 	"fmt"
 	"log"
@@ -29,10 +28,11 @@ var errorLog *log.Logger
 // main is the main function
 func main() {
 
-	err := run()
+	db, err := run()
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer db.SQL.Close()
 
 	fmt.Println(fmt.Sprintf("Staring application on port %s", portNumber))
 
@@ -50,6 +50,10 @@ func main() {
 func run() (*driver.DB, error) {
 	//  what am I going to put in the session
 	gob.Register(models.Reservation{})
+	gob.Register(models.User{})
+	gob.Register(models.Restriction{})
+	gob.Register(models.RoomRestriction{})
+	gob.Register(models.Room{})
 
 	// change this to true when in production
 	app.InProduction = false
@@ -71,11 +75,10 @@ func run() (*driver.DB, error) {
 
 	// connect to database
 	log.Println("Connection to database...")
-	db, err := driver.ConnectSQL("host=localhost port=5432 dbname=postgres user=postgres password=")
+	db, err := driver.ConnectSQL("host=localhost port=5432 dbname=postgres user=postgres password=abk2001")
 	if err != nil {
 		log.Fatal("Cannot connect to database! Dying...")
 	}
-	defer db.SQL.Close()
 
 	tc, err := render.CreateTemplateCache()
 	if err != nil {
@@ -86,10 +89,10 @@ func run() (*driver.DB, error) {
 	app.TemplateCache = tc
 	app.UseCache = false
 
-	repo := handlers.NewRepo(&app)
+	repo := handlers.NewRepo(&app, db)
 	handlers.NewHandlers(repo)
 
-	render.NewTemplates(&app)
+	render.NewRenderer(&app)
 	helpers.NewHelpers(&app)
 
 	return db, nil
